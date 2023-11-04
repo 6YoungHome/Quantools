@@ -7,28 +7,6 @@ from scipy import stats
 from . import evaluate
 
 
-def winsorize_factor(factor, fac_name):
-    '''
-    为了保证因子的稳定性,对因子进行截尾（将<0.01 >0.99的因子调整为1/99分位数）
-    '''
-    def winsorize(col, fac_name):
-        if col[fac_name] > col['p99']:
-            return col['p99']
-        elif col[fac_name] < col['p1']:
-            return col['p1']
-        else:
-            return col[fac_name]
-    factors = factor.copy()
-    p = factors.groupby('close_date')[fac_name].quantile(0.99).reset_index().rename(columns={fac_name: 'p99'})
-    p['p1'] = factors.groupby('close_date')[fac_name].quantile(0.01).reset_index()[fac_name]
-    factors = factors.merge(p, on='close_date')
-
-    tqdm.pandas(desc=f"Winsorizing the factor {fac_name}: ")
-    factors[fac_name] = factors.progress_apply(lambda x: winsorize(x, fac_name), axis=1)
-    factors = factors.drop(['p1', 'p99'], axis=1)
-    return factors
-
-
 def fama_macbeth(factor, fac_name):
     """
     返回fama_macbeth回归检验参数
@@ -44,7 +22,7 @@ def fama_macbeth(factor, fac_name):
     factors = factor.copy()
     factors = factors[~factors[fac_name].isna()]
     tqdm.pandas(desc=f"Fama-MacBeth Regression by factor {fac_name}: ")
-    fg = factors.groupby('close_date').progress_apply(lambda x: cal_beta(x, fac_name)).reset_index()
+    fg = factors.groupby('date').progress_apply(lambda x: cal_beta(x, fac_name)).reset_index()
     t, p = stats.ttest_1samp(fg[0], 0)
     pos_count, neg_count = (fg[0]>0).sum(),(fg[0]<0).sum()
     res_dict = {
@@ -57,13 +35,13 @@ def fama_macbeth(factor, fac_name):
 def group_return_analysis(factor, fac_name, group_num=10, plot=True):
     factors = factor.copy()
     factors = factors[~factors[fac_name].isna()]
-    factors['rank'] = factors.groupby('close_date')[fac_name].rank(method='first')
-    factors['group'] = factors.groupby('close_date')['rank'].apply(lambda x: pd.qcut(x, group_num, range(group_num)))
+    factors['rank'] = factors.groupby('date')[fac_name].rank(method='first')
+    factors['group'] = factors.groupby('date')['rank'].apply(lambda x: pd.qcut(x, group_num, range(group_num)))
 
     group_cum_rtns = pd.DataFrame()
     group_rtns = pd.DataFrame()
     for i in trange(group_num, desc="Calculating groups"):
-        rtn = factors[factors['group']==i].groupby('close_date').mean()[['pred_rtn']]
+        rtn = factors[factors['group']==i].groupby('date').mean()[['pred_rtn']]
         rtn['cum_rtn'] = (rtn['pred_rtn'] + 1).cumprod()
         group_cum_rtns[i] = rtn['cum_rtn']
         group_rtns[i] = rtn['pred_rtn']
@@ -88,11 +66,11 @@ def get_strategy_rtn(factor, fac_name, reverse=False, n=100):
     """
     factors = factor.copy()
     factors = factors[~factors[fac_name].isna()]
-    factors['rank'] = factors.groupby('close_date')[fac_name].rank(method='first', ascending=reverse)
+    factors['rank'] = factors.groupby('date')[fac_name].rank(method='first', ascending=reverse)
     factors = factors[factors['rank']<=n]
-    rtn = factors.groupby('close_date')['pred_rtn'].mean().reset_index()
+    rtn = factors.groupby('date')['pred_rtn'].mean().reset_index()
     rtn['cum_rtn'] = (1+rtn['pred_rtn']).cumprod()
-    rtn = rtn.set_index('close_date')
+    rtn = rtn.set_index('date')
     return rtn
 
 
@@ -166,9 +144,9 @@ def mutifactor_score(factor, fac_names, group_num=10, stock_num=100, plot=True):
     factors = factors.dropna()
     for fac_name in fac_names:
         fac_name, reverse = fac_name_parse(fac_name)
-        factors['rank'] = factors.groupby('close_date')[fac_name] \
+        factors['rank'] = factors.groupby('date')[fac_name] \
             .rank(method='first', ascending=reverse)
-        factors[fac_name+'_score'] = factors.groupby('close_date')['rank'] \
+        factors[fac_name+'_score'] = factors.groupby('date')['rank'] \
             .apply(lambda x: pd.qcut(x, group_num, range(group_num)))
         
     factors['score'] = factors.loc[:, factors.columns.str.contains('score')].sum(axis=1)
@@ -213,12 +191,12 @@ def mutifactor_regression(factor, fac_names, stock_num=100, plot=True):
     
     # 计算回归系数
     beta_fac_names = ["alpha"] + [fac_name+"_beta" for fac_name in fac_names] # 各个因子回归系数的列表
-    alpha_beta = factors.groupby('close_date').apply(lambda x: cal_beta(x, fac_names)).to_frame()
+    alpha_beta = factors.groupby('date').apply(lambda x: cal_beta(x, fac_names)).to_frame()
     alpha_beta[beta_fac_names] = alpha_beta[[0]].apply(lambda x: x[0], axis=1, result_type="expand")
     alpha_beta = alpha_beta.drop(0, axis=1)
     alpha_beta = alpha_beta.shift(2).reset_index() # 回归得到的系数事实上只能预测两周后的收益
     
-    factors = pd.merge(factors, alpha_beta, on="close_date", how="left")
+    factors = pd.merge(factors, alpha_beta, on="date", how="left")
     
     tqdm.pandas(desc="Calculating regression return: ")
     factors['reg_pred_rtn'] = factors.progress_apply(lambda x:cal_reg_pred_rtn(x, fac_names, beta_fac_names), axis=1)
