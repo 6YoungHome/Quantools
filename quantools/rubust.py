@@ -9,15 +9,18 @@ def winsorize(factor, fac_name, method="quantile", **kwargs):
     可以选择均值标准差方法或者分位数方法截尾
 
     Args:
-        factor (_pd.DataFrame_): 因子数据框
-        fac_name (_str_): 准备温莎处理的因子名称
-        method (_str_ or _int_, optional): 选取的方法;
+        factor (pd.DataFrame): 因子数据框
+        fac_name (str): 准备温莎处理的因子名称
+        method (str or int, optional): 选取的方法;
             "quantile" or 0: 分位数结尾,一般取0.01
             "sigma" or 1: 根据正态分布特征的sigma原则截尾,一般取3
-        kwargs:
-            q: quantile方法下的参数
-            n: sigma方法下的参数
-            date: factor数据框中时间对应的列名，未定义时默认为date
+    kwargs:
+        q: quantile方法下的参数
+        n: sigma方法下的参数
+        date: factor数据框中时间对应的列名，未定义时默认为date
+
+    Returns:
+        pd.DataFrame: 处理后的因子数据框
     """
     def _winsorize(col, fac_name):
         if col[fac_name] > col['upper']:
@@ -64,14 +67,17 @@ def winsorize(factor, fac_name, method="quantile", **kwargs):
 
 def standardize(factor, fac_names, **kwargs):
     """
-    为了保证因子的稳定性,对因子进行截尾,
-    可以选择均值标准差方法或者分位数方法截尾
+    为了保证因子的稳定性,对因子进行标准化
 
     Args:
-        factor (_pd.DataFrame_): 因子数据框
-        fac_names (_list(str)_): 准备标准化的的因子名称列表
-        kwargs:
-            date: factor数据框中时间对应的列名，未定义时默认为date
+        factor (pd.DataFrame): 因子数据框
+        fac_names ([str]): 准备标准化的的因子名称列表
+
+    kwargs:
+        date: factor数据框中时间对应的列名，未定义时默认为date
+    
+    Returns:
+        pd.DataFrame: 处理后的因子数据框
     """
 
     factors = factor.copy()
@@ -88,34 +94,34 @@ def industry_neutralise(factor, fac_name, method=0, **kwargs):
     对因子在行业上的表现进行中性化
 
     Args:
-        factor (_pd.DataFrame_): 因子数据框
-        fac_name (_str_): 准备中性化的因子名称
-        method (_str_ or _int_, optional): 选取的方法;
+        factor (pd.DataFrame): 因子数据框
+        fac_name (str): 准备中性化的因子名称
+        method (str or int): 选取的方法;
             "regression" or 0: 使用回归法进行中性化
             "group_std" or 1: 使用分组标准化法进行中性化
-        kwargs:
-            date: factor数据框中时间对应的列名，未定义时默认为"date"
-            industry: factor数据框中行业对应的列名，未定义时默认为"industry"
+    kwargs:
+        date: factor数据框中时间对应的列名，未定义时默认为"date"
+        industry: factor数据框中行业对应的列名，未定义时默认为"industry"
 
     Returns:
-        _pd.DataFrame_:中性化后的数据框
+        pd.DataFrame:中性化后的数据框
     """
     factors = factor.copy()
     date = 'date' if 'date' not in kwargs else kwargs['date']
     industry = 'industry' if 'industry' not in kwargs else kwargs['industry']
 
     if method == "regression" or method == 0:
-        print("使用回归法进行中性化")
+        tqdm.pandas(desc="使用回归法进行中性化")
         dummies = pd.get_dummies(factors[industry])
         factors = pd.concat([factors, dummies], axis=1)
         dummies_col = list(dummies.columns)
 
-        factors[fac_name] = factors.groupby(date)[fac_name] \
+        factors[fac_name] = factors.progress_groupby(date)[fac_name] \
             .apply(lambda x: sm.OLS(x[fac_name],x[dummies_col]).fit().resid)
 
     elif method == "group_std" or method == 1:
-        print("使用分组标准化法进行中性化")
-        factors[fac_name] = factors.groupby([date, industry])[fac_name] \
+        tqdm.pandas(desc="使用分组标准化法进行中性化")
+        factors[fac_name] = factors.progress_groupby([date, industry])[fac_name] \
             .apply(lambda x:(x - x.mean()) / x.std())
 
     else:
@@ -126,17 +132,17 @@ def industry_neutralise(factor, fac_name, method=0, **kwargs):
 
 def neutralise(factor, fac_name, style_names, **kwargs):
     """
-    对因子在行业上的表现进行中性化
+    对因子在各类风险因子上的表现进行中性化
 
     Args:
-        factor (_pd.DataFrame_): 因子数据框
-        fac_name (_str_): 准备中性化的因子名称
-        style_name (_list(_str_)_): 风格因子列表，准备消除的影响
-        kwargs:
-            date: factor数据框中时间对应的列名，未定义时默认为"date"
+        factor (pd.DataFrame): 因子数据框
+        fac_name (str): 准备中性化的因子名称
+        style_name ([str]): 风格因子列表，准备消除的影响
+    kwargs:
+        date: factor数据框中时间对应的列名，未定义时默认为"date"
 
     Returns:
-        _pd.DataFrame_:中性化后的数据框
+        pd.DataFrame:中性化后的数据框
     """
     factors = factor.copy()
     date = 'date' if 'date' not in kwargs else kwargs['date']
