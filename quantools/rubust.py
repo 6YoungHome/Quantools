@@ -116,13 +116,13 @@ def industry_neutralise(factor, fac_name, method=0, **kwargs):
         factors = pd.concat([factors, dummies], axis=1)
         dummies_col = list(dummies.columns)
 
-        factors[fac_name] = factors.progress_groupby(date)[fac_name] \
-            .apply(lambda x: sm.OLS(x[fac_name],x[dummies_col]).fit().resid)
+        factors[fac_name] = factors.groupby(date)[fac_name] \
+            .progress_apply(lambda x: sm.OLS(x[fac_name],x[dummies_col]).fit().resid)
 
     elif method == "group_std" or method == 1:
         tqdm.pandas(desc="使用分组标准化法进行中性化")
-        factors[fac_name] = factors.progress_groupby([date, industry])[fac_name] \
-            .apply(lambda x:(x - x.mean()) / x.std())
+        factors[fac_name] = factors.groupby([date, industry])[fac_name] \
+            .progress_apply(lambda x:(x - x.mean()) / x.std())
 
     else:
         print(f"不存在‘{method}’中性化方法")

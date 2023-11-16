@@ -35,7 +35,7 @@ def fama_macbeth(factor, fac_name, **kwargs):
     factors = factor.copy()
     factors = factors[~factors[fac_name].isna()]
     tqdm.pandas(desc=f"Fama-MacBeth Regression by factor {fac_name}: ")
-    fg = factors.groupby(date).progress_apply(lambda x: cal_beta(x, fac_name, kwargs)).reset_index()
+    fg = factors.groupby(date).progress_apply(lambda x: cal_beta(x, fac_name, **kwargs)).reset_index()
     t, p = stats.ttest_1samp(fg[0], 0)
     pos_count, neg_count = (fg[0]>0).sum(),(fg[0]<0).sum()
     res_dict = {

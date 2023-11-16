@@ -78,8 +78,8 @@ def bollinger_bond(stock_data: pd.DataFrame, window: int, n_std: int, field: str
     Returns:
         _pd.DataFrame_: 布林带上下界、布林带均线与标准差
     """
-    bb = sma(stock_data, window, field, kwargs)
-    bb[f'ms{window}'] = smsd(stock_data, window, field, kwargs)
+    bb = sma(stock_data, window, field, **kwargs)
+    bb[f'ms{window}'] = smsd(stock_data, window, field, **kwargs)
     bb['upbond'] = bb[f'ma{window}'] + n_std * bb[f'ms{window}']
     bb['downbond'] = bb[f'ma{window}'] + n_std * bb[f'ms{window}']
     return bb
