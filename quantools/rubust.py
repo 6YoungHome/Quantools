@@ -2,8 +2,7 @@ from tqdm import tqdm
 import pandas as pd
 import statsmodels.api as sm
 
-
-def winsorize(factor, fac_name, method="quantile", **kwargs):
+def winsorize(factor: pd.DataFrame, fac_name: str, method: str or int="quantile", **kwargs):
     """
     为了保证因子的稳定性,对因子进行截尾,
     可以选择均值标准差方法或者分位数方法截尾
@@ -12,11 +11,12 @@ def winsorize(factor, fac_name, method="quantile", **kwargs):
         factor (pd.DataFrame): 因子数据框
         fac_name (str): 准备温莎处理的因子名称
         method (str or int, optional): 选取的方法;
-            "quantile" or 0: 分位数结尾,一般取0.01
-            "sigma" or 1: 根据正态分布特征的sigma原则截尾,一般取3
+            "quantile" or 0: 分位数结尾
+            "sigma" or 1: 根据正态分布特征的sigma原则截尾
+            "MAD" or 2: 中位数绝对偏差去极值方法
     kwargs:
-        q: quantile方法下的参数
-        n: sigma方法下的参数
+        q: quantile方法下的参数,一般取0.01
+        n: sigma or MAD方法下的参数,一般取3
         date: factor数据框中时间对应的列名，未定义时默认为date
 
     Returns:
@@ -40,15 +40,20 @@ def winsorize(factor, fac_name, method="quantile", **kwargs):
             print("使用sigma方法去极值时需要有参数n")
             print("n取值为正整数，意为将因子nσ两端的数据截尾,一般取3")
             return 
+    elif method == "MAD" or method == 2:
+        if 'n' not in kwargs:
+            print("使用MAD方法去极值时需要有参数n")
+            print("n取值为正整数，一般取3")
+            return 
     else:
         return
     
     date = 'date' if 'date' not in kwargs else kwargs['date']
+    bound = factors.sort_values(date)[date]
 
-    factors = factor.copy()
     if method == "quantile":
-        bound = factors.groupby(date)[fac_name].quantile(1-kwargs['q']) \
-            .reset_index().rename(columns={fac_name: 'upper'})
+        bound['upper'] = factors.groupby(date)[fac_name].quantile(1-kwargs['q']) \
+            .reset_index()[fac_name]
         bound['lower'] = factors.groupby(date)[fac_name].quantile(kwargs['q']) \
             .reset_index()[fac_name]
         
@@ -57,6 +62,14 @@ def winsorize(factor, fac_name, method="quantile", **kwargs):
         std = factors.groupby(date)[fac_name].std().reset_index()
         bound['upper'] = avg + kwargs['n'] * std
         bound['lower'] = avg - kwargs['n'] * std
+
+    if method == "MAD":
+        med = factors.groupby(date)[fac_name].median().reset_index()
+        mad = factors.groupby(date)[fac_name] \
+            .apply(lambda x: (x-x.median()).median()).reset_index()
+        bound['upper'] = med + kwargs['n'] * 1.4826 * mad
+        bound['lower'] = med - kwargs['n'] * 1.4826 * mad
+
     factors = factors.merge(bound, on=date)
 
     tqdm.pandas(desc=f"Winsorizing the factor {fac_name}: ")
