@@ -18,7 +18,7 @@ URL = 'https://github.com/6YoungHome/Quantools'
 EMAIL = '6young717@gmail.com'
 AUTHOR = '6Young'
 REQUIRES_PYTHON = '>=3.6.0'
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 
 # What packages are required for this module to be executed?
 REQUIRED = [

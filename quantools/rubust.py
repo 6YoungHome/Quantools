@@ -3,9 +3,31 @@ import pandas as pd
 import numpy as np
 import statsmodels.api as sm
 from collections.abc import Iterable
+from .error import *
 
 
-def winsorize(factor: pd.DataFrame, fac_name: str, method: str or int="quantile", **kwargs):
+def _mad_winsorize(groups, n):
+    med = groups.median()
+    mad = abs(groups - med).median()
+    up = med + n * 1.4826 * mad
+    low = med - n * 1.4826 * mad
+    groups = groups.clip(upper=up, lower=low)
+    return groups
+
+
+def _q_winsorize(groups, q):
+    groups = groups.clip(upper=groups.quantile(1-q), lower=groups.quantile(q))
+    return groups
+
+
+def _std_winsorize(groups, n):
+    avg = groups.mean()
+    std = groups.std()
+    groups = groups.clip(upper=avg+n*std, lower=avg-n*std)
+    return groups
+
+
+def winsorize(factor: pd.DataFrame, fac_name: str, method: str="quantile", **kwargs):
     """
     为了保证因子的稳定性,对因子进行截尾,
     可以选择均值标准差方法或者分位数方法截尾
@@ -14,9 +36,9 @@ def winsorize(factor: pd.DataFrame, fac_name: str, method: str or int="quantile"
         factor (pd.DataFrame): 因子数据框
         fac_name (str): 准备温莎处理的因子名称
         method (str or int, optional): 选取的方法;
-            "quantile" or 0: 分位数结尾
-            "sigma" or 1: 根据正态分布特征的sigma原则截尾
-            "MAD" or 2: 中位数绝对偏差去极值方法
+            "quantile": 分位数结尾
+            "sigma": 根据正态分布特征的sigma原则截尾
+            "MAD": 中位数绝对偏差去极值方法
     kwargs:
         q: quantile方法下的参数,一般取0.01
         n: sigma or MAD方法下的参数,一般取3
@@ -25,61 +47,30 @@ def winsorize(factor: pd.DataFrame, fac_name: str, method: str or int="quantile"
     Returns:
         pd.DataFrame: 处理后的因子数据框
     """
-    def _winsorize(col, fac_name):
-        if col[fac_name] > col['upper']:
-            return col['upper']
-        elif col[fac_name] < col['lower']:
-            return col['lower']
-        else:
-            return col[fac_name]
-    
-    if method == "quantile" or method == 0:
-        if 'q' not in kwargs:
-            print("使用quantile方法去极值时需要有参数q")
-            print("q取值为(0-0.5)，意为将q分位数两端的数据截尾，一般取0.01")
-            return 
-    elif method == "sigma" or method == 1:
-        if 'n' not in kwargs:
-            print("使用sigma方法去极值时需要有参数n")
-            print("n取值为正整数，意为将因子nσ两端的数据截尾,一般取3")
-            return 
-    elif method == "MAD" or method == 2:
-        if 'n' not in kwargs:
-            print("使用MAD方法去极值时需要有参数n")
-            print("n取值为正整数，一般取3")
-            return 
-    else:
-        return
-    
     date = 'date' if 'date' not in kwargs else kwargs['date']
-    bound = factors.sort_values(date)[date]
+    tqdm.pandas(desc=f"Winsorizing the factor {fac_name}: ")
 
     if method == "quantile":
-        bound['upper'] = factors.groupby(date)[fac_name].quantile(1-kwargs['q']) \
-            .reset_index()[fac_name]
-        bound['lower'] = factors.groupby(date)[fac_name].quantile(kwargs['q']) \
-            .reset_index()[fac_name]
+        if 'q' not in kwargs:
+            raise MissArgsError("q", "quantile方法下的参数,一般取0.01")
+        factor[fac_name] = factor.groupby(date)[fac_name]. \
+            progress_apply(lambda x: _q_winsorize(x, kwargs['q']))
         
-    if method == "sigma":
-        avg = factors.groupby(date)[fac_name].mean().reset_index()
-        std = factors.groupby(date)[fac_name].std().reset_index()
-        bound['upper'] = avg + kwargs['n'] * std
-        bound['lower'] = avg - kwargs['n'] * std
+    elif method == "sigma" or method == 1:
+        if 'n' not in kwargs:
+            raise MissArgsError("n", "sigma方法下的参数,一般取3")
+        factor[fac_name] = factor.groupby(date)[fac_name]. \
+            progress_apply(lambda x: _std_winsorize(x, kwargs['n']))
+        
+    elif method == "MAD" or method == 2:
+        if 'n' not in kwargs:
+            raise MissArgsError("n", "MAD方法下的参数,一般取3")
+        factor[fac_name] = factor.groupby(date)[fac_name]. \
+            progress_apply(lambda x: _mad_winsorize(x, kwargs['n']))
+    else:
+        raise InvalidArgsError("method", method)
 
-    if method == "MAD":
-        med = factors.groupby(date)[fac_name].median().reset_index()
-        mad = factors.groupby(date)[fac_name] \
-            .apply(lambda x: (x-x.median()).median()).reset_index()
-        bound['upper'] = med + kwargs['n'] * 1.4826 * mad
-        bound['lower'] = med - kwargs['n'] * 1.4826 * mad
-
-    factors = factors.merge(bound, on=date)
-
-    tqdm.pandas(desc=f"Winsorizing the factor {fac_name}: ")
-    factors[fac_name] = factors.progress_apply(lambda x: _winsorize(x, fac_name), axis=1)
-    factors = factors.drop(['upper', 'lower'], axis=1)
-
-    return factors
+    return factor
 
 def standardize(factor: pd.DataFrame, fac_names: [str], **kwargs):
     """
@@ -141,7 +132,7 @@ def industry_neutralise(factor: pd.DataFrame, fac_name: str, method=0, **kwargs)
             .progress_apply(lambda x:(x - x.mean()) / x.std())
 
     else:
-        print(f"不存在‘{method}’中性化方法")
+        raise InvalidArgsError("method", method, )
 
     return factors
 
@@ -187,8 +178,8 @@ def group_neutralise(factor: pd.DataFrame, fac_name: str, style_name: str, group
     if isinstance(groups, Iterable):
         labels = range(1, len(groups))
     else:
-        groups = np.linspace(0,1,groups+1)
         labels = range(1, groups+1)
+        groups = np.linspace(0,1,groups+1)
 
     date = 'date' if 'date' not in kwargs else kwargs['date']
     gn_fac = factor.sort_values(date)
