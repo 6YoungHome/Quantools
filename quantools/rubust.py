@@ -1,6 +1,9 @@
 from tqdm import tqdm
 import pandas as pd
+import numpy as np
 import statsmodels.api as sm
+from collections.abc import Iterable
+
 
 def winsorize(factor: pd.DataFrame, fac_name: str, method: str or int="quantile", **kwargs):
     """
@@ -78,7 +81,7 @@ def winsorize(factor: pd.DataFrame, fac_name: str, method: str or int="quantile"
 
     return factors
 
-def standardize(factor, fac_names, **kwargs):
+def standardize(factor: pd.DataFrame, fac_names: [str], **kwargs):
     """
     为了保证因子的稳定性,对因子进行标准化
 
@@ -102,7 +105,7 @@ def standardize(factor, fac_names, **kwargs):
 
 
 
-def industry_neutralise(factor, fac_name, method=0, **kwargs):
+def industry_neutralise(factor: pd.DataFrame, fac_name: str, method=0, **kwargs):
     """
     对因子在行业上的表现进行中性化
 
@@ -143,14 +146,14 @@ def industry_neutralise(factor, fac_name, method=0, **kwargs):
     return factors
 
 
-def neutralise(factor, fac_name, style_names, **kwargs):
+def regression_neutralise(factor: pd.DataFrame, fac_name: str, style_names: [str], **kwargs):
     """
-    对因子在各类风险因子上的表现进行中性化
+    对因子在各类风险因子上的表现进行回归中性化
 
     Args:
         factor (pd.DataFrame): 因子数据框
         fac_name (str): 准备中性化的因子名称
-        style_name ([str]): 风格因子列表，准备消除的影响
+        style_names ([str]): 风格因子列表，准备消除的影响
     kwargs:
         date: factor数据框中时间对应的列名，未定义时默认为"date"
 
@@ -164,3 +167,40 @@ def neutralise(factor, fac_name, style_names, **kwargs):
         .apply(lambda x: sm.OLS(x[fac_name],x[style_names]).fit().resid)
     
     return factors
+
+
+def group_neutralise(factor: pd.DataFrame, fac_name: str, style_name: str, groups:int or Iterable, **kwargs):
+    """
+    对因子在各类风险因子上的表现进行分组中性化
+
+    Args:
+        factor (pd.DataFrame): 因子数据框
+        fac_name (str): 准备中性化的因子名称
+        style_name (str): 风格因子，准备消除的影响
+        groups (int or Iterable): 分组数量；或者一个0~1的列表，作为分组切割方案
+    kwargs:
+        date: factor数据框中时间对应的列名，未定义时默认为"date"
+
+    Returns:
+        pd.DataFrame:中性化后的数据框
+    """
+    if isinstance(groups, Iterable):
+        labels = range(1, len(groups))
+    else:
+        groups = np.linspace(0,1,groups+1)
+        labels = range(1, groups+1)
+
+    date = 'date' if 'date' not in kwargs else kwargs['date']
+    gn_fac = factor.sort_values(date)
+    gn_fac['rank'] = gn_fac.groupby(date)[style_name] \
+        .apply(lambda x: x.rank(method='first')/x.count())
+    gn_fac['level']=pd.cut(gn_fac['rank'], groups, right=True, labels=labels)
+
+    tqdm.pandas(desc="Neutralising: ")
+    gn_fac[fac_name] = gn_fac.groupby([date, 'level'])[fac_name] \
+        .progress_apply(lambda x:(x - x.mean()) / x.std())
+    gn_fac = gn_fac.drop(['level', 'rank'], axis=1)
+    
+    return gn_fac
+
+
