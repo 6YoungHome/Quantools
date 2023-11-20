@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
 from scipy import stats
 
-from . import evaluate
+from .evaluate import *
 
 
 def fama_macbeth(factor, fac_name, **kwargs):
@@ -85,7 +85,7 @@ def group_return_analysis(factor, fac_name, group_num=10, plot=True, **kwargs):
         ax1.set_title(f"{group_num} group return of factor {fac_name}")
         ax1.legend()
         
-        annual_rtns = [evaluate.annual_info(group_rtns[i])['annual_return'] for i in range(group_num)]
+        annual_rtns = [annual_info(group_rtns[i])['annual_return'] for i in range(group_num)]
         ax2.bar(range(group_num), annual_rtns)
         ax2.set_title(f"Annual return of {group_num} groups")
     return group_rtns
@@ -138,10 +138,10 @@ def evaluate_strategy(return_df, yearly_evaluate=True, **kwargs):
         计算评价策略的部分指标
         """
         res_dict = {}
-        res_dict.update(evaluate.sharpe_ratio(return_df))
-        res_dict.update(evaluate.maximum_drawdown(return_df))
-        res_dict.update(evaluate.sortino_ratio(return_df))
-        res_dict.update(evaluate.annual_info(return_df))
+        res_dict.update(sharpe_ratio(return_df))
+        res_dict.update(maximum_drawdown(return_df))
+        res_dict.update(sortino_ratio(return_df))
+        res_dict.update(annual_info(return_df))
         return res_dict
     
     pred_rtn = 'pred_rtn' if 'pred_rtn' not in kwargs else kwargs['pred_rtn']
