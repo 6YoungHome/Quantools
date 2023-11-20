@@ -153,9 +153,9 @@ def regression_neutralise(factor: pd.DataFrame, fac_name: str, style_names: [str
     """
     factors = factor.copy()
     date = 'date' if 'date' not in kwargs else kwargs['date']
-    
-    factors[fac_name] = factors.groupby(date)[fac_name] \
-        .apply(lambda x: sm.OLS(x[fac_name],x[style_names]).fit().resid)
+    tqdm.pandas(desc="Regression neutralising: ")
+    factors[fac_name] = factors.groupby(date) \
+        .progress_apply(lambda x: sm.OLS(x[fac_name],x[style_names]).fit().resid).reset_index('date')[0]
     
     return factors
 
