@@ -11,6 +11,15 @@ from shutil import rmtree
 
 from setuptools import find_packages, setup, Command
 
+def get_version():
+    with open("./quantools/__version__.py", "r") as f:
+        for l in f.readlines():
+            if "VERSION" in l:
+                break
+    version = l.split("=")[-1] \
+        .replace("(", "").replace(")", "").replace(",", ".").replace(" ", "")
+    return version
+
 # Package meta-data.
 NAME = 'quantools'
 DESCRIPTION = '个人的量化指标计算与回测的工具库'
@@ -18,7 +27,7 @@ URL = 'https://github.com/6YoungHome/Quantools'
 EMAIL = '6young717@gmail.com'
 AUTHOR = '6Young'
 REQUIRES_PYTHON = '>=3.6.0'
-VERSION = '0.3.0'
+VERSION = get_version()
 
 # What packages are required for this module to be executed?
 REQUIRED = [

@@ -86,7 +86,7 @@ def maximum_drawdown(returns_df):
     end = dd[dd==mdd].dropna().index[0]
     start = peak[peak==peak.loc[end]].dropna().index[0]
     res_dict = {
-        'max_drawdown': mdd.value.values[0], 'max_drawdown_start': start,
+        'max_drawdown': mdd.values[0], 'max_drawdown_start': start,
         'max_drawdown_end': end, 
     }
     return res_dict
