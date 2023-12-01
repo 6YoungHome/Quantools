@@ -33,7 +33,7 @@ VERSION = get_version()
 REQUIRED = [
     'tqdm', 'matplotlib',
     'pandas', 'numpy', 
-    'statsmodels', 'sklearn', 'scipy'
+    'statsmodels', 'scikit-learn', 'scipy'
 ]
 
 # What packages are optional?
