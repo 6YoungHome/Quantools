@@ -5,6 +5,7 @@ from sklearn.linear_model import LinearRegression
 from scipy import stats
 
 from .evaluate import *
+from .paint import *
 
 
 def fama_macbeth(factor, fac_name, **kwargs):
@@ -80,18 +81,16 @@ def group_return_analysis(factor, fac_name, group_num=10, plot=True, **kwargs):
     if plot:
         fig = plt.figure(figsize=(16, 5))
         ax1, ax2 = fig.subplots(1, 2)
-        for i in range(group_num):
-            group_cum_rtns[i].plot(ax=ax1, label=i)
+        ax1 = group_cummulate_returns_painter(group_rtns, ax1)
         ax1.set_title(f"{group_num} group return of factor {fac_name}")
         ax1.legend()
-        
-        annual_rtns = [annual_info(group_rtns[i])['annual_return'] for i in range(group_num)]
-        ax2.bar(range(group_num), annual_rtns)
+
+        ax2 = group_annual_returns_painter(group_rtns, ax2)
         ax2.set_title(f"Annual return of {group_num} groups")
     return group_rtns
 
 
-def get_strategy_rtn(factor, fac_name, reverse=False, n=100, **kwargs):
+def get_strategy_rtn(factor, fac_name, reverse=False, n=100, head=1, **kwargs):
     """根据因子计算策略的收益
 
     Args:
@@ -99,7 +98,8 @@ def get_strategy_rtn(factor, fac_name, reverse=False, n=100, **kwargs):
         fac_name (str): 因子名称
         reverse (bool): 因子作用方向. 默认为False即因子越大收益越高.
         n (int,): 每周期选股数量. 默认为100只.
-
+        head(float, optional): 从第几只股票开始选，默认从头开始(1),若小于1，则从head分位数开始
+        
     kwargs:
         date: factor数据框中时间对应的列名，未定义时默认为"date"
         pred_rtn: factor数据框中预测收益率对应的列名，未定义时默认为"pred_rtn"
@@ -113,7 +113,11 @@ def get_strategy_rtn(factor, fac_name, reverse=False, n=100, **kwargs):
     factors = factor.copy()
     factors = factors[~factors[fac_name].isna()]
     factors['rank'] = factors.groupby(date)[fac_name].rank(method='first', ascending=reverse)
-    factors = factors[factors['rank']<=n]
+    if head>=1:
+        factors = factors[(factors['rank']<(n+head)) & (factors['rank']>=head)]
+    else:
+        factors[factors.groupby(date)['rank'] \
+                .apply(lambda x: (x>=int(x.quantile(head))) & (x<int(x.quantile(head))+n))]
     rtn = factors.groupby(date)[pred_rtn].mean().reset_index()
     rtn['cum_rtn'] = (1+rtn[pred_rtn]).cumprod()
     rtn = rtn.set_index(date)
@@ -159,7 +163,7 @@ def evaluate_strategy(return_df, yearly_evaluate=True, **kwargs):
     return evaluate_result
 
 
-def backtest_nstock(factor, fac_name, reverse=False, n=100, plot=True, yearly_evaluate=True, **kwargs):
+def backtest_nstock(factor, fac_name, reverse=False, n=100, head=1, plot=True, yearly_evaluate=True, **kwargs):
     """
     利用因子计算策略的收益率，绘图，并计算相关指标
     Args:
@@ -167,6 +171,7 @@ def backtest_nstock(factor, fac_name, reverse=False, n=100, plot=True, yearly_ev
         fac_name (_str_): 因子名称
         reverse (_bool_, optional): 正向因子or负向因子
         n (_int_, optional): 选取股票的数量（默认100只）
+        head(float, optional): 从第几只股票开始选，默认从头开始(1),若小于1，则从head分位数开始
         plot (_bool_, optional): 是否绘图（默认绘图）
         yearly_evaluate (_bool_, optional): 是否评价策略每年情况（默认评价）
 
@@ -179,9 +184,12 @@ def backtest_nstock(factor, fac_name, reverse=False, n=100, plot=True, yearly_ev
     """
     pred_rtn = 'pred_rtn' if 'pred_rtn' not in kwargs else kwargs['pred_rtn']
 
-    rtn = get_strategy_rtn(factor, fac_name, reverse, n)
+    rtn = get_strategy_rtn(factor, fac_name, reverse, n, head)
     if plot:
-        rtn['cum_rtn'].plot(figsize=(10,5), title=f'Cummulate return of factor {fac_name}')
+        fig = plt.figure(figsize=(10, 5))
+        ax = fig.subplots(1, 1)
+        ax = diverse_cummulate_painter(rtn[[pred_rtn]], ax)
+        ax.set_title(f"Cummulate return of factor {fac_name}")
     evaluate_result = evaluate_strategy(rtn[[pred_rtn]], yearly_evaluate)
     return rtn, evaluate_result
 

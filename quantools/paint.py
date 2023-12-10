@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 import pandas as pd
 import numpy as np
+
 from .evaluate import *
 
 def cumulate_return_painter(return_df: pd.DataFrame, ax: plt.Axes):
@@ -70,7 +71,6 @@ def group_annual_returns_painter(group_ret: pd.DataFrame, ax: plt.Axes):
     annual_rtns = [annual_info(group_ret.iloc[:, i])['annual_return'] for i in range(group_ret.shape[1])]
     ax.bar(group_ret.columns, annual_rtns)
     ax.axhline(np.mean(annual_rtns), color='orange')
-    ax.set_title(f"Annual return of {group_ret.shape[1]} groups")
 
 
 def diverse_cummulate_painter(return_df: pd.DataFrame, ax: plt.Axes):
