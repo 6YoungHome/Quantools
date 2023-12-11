@@ -81,11 +81,11 @@ def group_return_analysis(factor, fac_name, group_num=10, plot=True, **kwargs):
     if plot:
         fig = plt.figure(figsize=(16, 5))
         ax1, ax2 = fig.subplots(1, 2)
-        ax1 = group_cummulate_returns_painter(group_rtns, ax1)
+        group_cummulate_returns_painter(group_rtns, ax1)
         ax1.set_title(f"{group_num} group return of factor {fac_name}")
         ax1.legend()
 
-        ax2 = group_annual_returns_painter(group_rtns, ax2)
+        group_annual_returns_painter(group_rtns, ax2)
         ax2.set_title(f"Annual return of {group_num} groups")
     return group_rtns
 
@@ -188,7 +188,7 @@ def backtest_nstock(factor, fac_name, reverse=False, n=100, head=1, plot=True, y
     if plot:
         fig = plt.figure(figsize=(10, 5))
         ax = fig.subplots(1, 1)
-        ax = diverse_cummulate_painter(rtn[[pred_rtn]], ax)
+        diverse_cummulate_painter(rtn[[pred_rtn]], ax)
         ax.set_title(f"Cummulate return of factor {fac_name}")
     evaluate_result = evaluate_strategy(rtn[[pred_rtn]], yearly_evaluate)
     return rtn, evaluate_result
