@@ -9,6 +9,6 @@
 #        Y8b                                                                                                                                                                                                  
 
 
-VERSION = (0, 3, 4)
+VERSION = (0, 3, 7)
 
 __version__ = '.'.join(map(str, VERSION))

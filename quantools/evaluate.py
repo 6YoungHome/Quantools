@@ -113,7 +113,7 @@ def sortino_ratio(returns_df, minimum_acceptable_return=0, period='yearly'):
     res_dict = {'sortino_ratio': sr}
     return res_dict
 
-def cal_ic(factor_b, return_n, method="normal"):
+def cal_one_ic(factor_b, return_n, method="normal"):
     """计算因子的IC值
 
     Args:
@@ -134,7 +134,8 @@ def cal_ic(factor_b, return_n, method="normal"):
     res_dict = {"IC": ic}
     return res_dict
 
-def ic_ir(factor_df, return_df, method='normal'):
+
+def one_ic_ir(factor_df, return_df, method='normal'):
     """计算策略的IC信息比率
 
     Args:
@@ -149,11 +150,33 @@ def ic_ir(factor_df, return_df, method='normal'):
     ic_ls = []
     for i in range(1, factors_b.shape[1]):
         date = factors_b.columns[i]
-        ic = cal_ic(factors_b[date], return_df[date], method=method)["IC"]
+        ic = cal_one_ic(factors_b[date], return_df[date], method=method)["IC"]
         ic_ls.append(ic)
     ic_ir = np.mean(ic_ls) / np.std(ic_ls)
     res_dict = {"ICIR": ic_ir}
     return res_dict
+
+def cal_series_ic(factor_series, pred_return_series, date_series, method="normal"):
+    """计算因子的IC值
+
+    Args:
+        factor_series (pd.DataFrame): t期因子数据
+        pred_return_series (pd.DataFrame): t+2期收益率数据（与factor相互对应）
+        date_series (pd.DataFrame): 日期数据（与factor相互对应）
+        method (str, optional): 默认为"normal", 还可以是"rank".
+    
+    returns:
+        dict: 指标字典，索引为IC
+    """
+    df = pd.DataFrame()
+    df['date'] = date_series
+    df['date'] = pred_return_series
+    df['factor'] = factor_series
+
+    if method == "rank":
+        df['factor'] = df['factor'].rank()
+    ic_series = df.groupby('date')[['factor', 'pred_rtn']].apply(lambda x: x.corr().iloc[0,1])
+    return ic_series
 
 
 def strategy_ir(return_p, base_return):
